@@ -1,0 +1,25 @@
+$def with (form, msg,error,win)
+<html>
+	<head>
+		<link href="static/calpoly.css" type='text/css' rel='stylesheet' />
+	</head>
+	<body>
+		<div id='topRow'>
+		</div>
+		<div id='centerContainer'>
+			<center>
+				<form name ="main" method="post">
+					$if msg != "":
+						<p><font color="black"> $msg </font></p>
+					$if error != "":
+						<p><font color="red"> $error </font></p>
+					$if win == True:
+						<img src="static/dealwithit-glasses.gif">
+					$:form.render()
+				</form>
+			</center>
+		</div>
+		<div id='bottomRow'>
+		</div>
+	</body>
+</html>
