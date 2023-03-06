@@ -107,7 +107,8 @@ def main():
     plaintext = decrypt_ciphertext(ciphertext)
     print(plaintext)
     print(bytearray(plaintext))
-    #print(crypto.pkcs7_strip(bytes(bytearray(plaintext)[:-1]), BLOCKSIZE).decode())
+    pStr = re.sub("[)(]", "", plaintext.decode())
+    print(crypto.pkcs7_strip(pStr.encode(), BLOCKSIZE).decode())
 
     # block = b'\xBE\xEF\xBE\xEF' * 4
     # plaintext = bytearray(BLOCKSIZE*3)
