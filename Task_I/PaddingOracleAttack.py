@@ -52,7 +52,9 @@ def decrypt_block(cblock1, cblock2):
 
     # Basic Idea: During decryption, for any plaintext byte P[i], P[i] = C[i] XOR Decryption(C[i+BLOCKSIZE])
     # Brute-forcing every possible C[i] will eventually give us valid padding
-    # Once this is done, we can calculate
+    # Once this is done, we can calculate what our plaintext will be and update our fake_IV using XOR logic
+    # For a more detailed, though somewhat hard-to-read explanation, I uploaded my written/drawn out work
+    #   on my github at https://github.com/LukeSev/CSC323-Lab3/blob/master/Task_I/Lab3_PaddingOracleAttack_Rationale.pdf 
 
     # Solve for first 15 padding bytes, last one is special case (all 0's)
     for target in range(1, BLOCKSIZE+1): # target pad value we want to set
