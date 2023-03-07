@@ -100,17 +100,16 @@ def decrypt_ciphertext(ciphertext):
             return
         print("Block {} Successfully decrypted".format(num_blocks-i))
         block = bytearray(decrypted)
-        plaintext = fill_bytes(plaintext, block, BLOCKSIZE, len(plaintext)-1-(BLOCKSIZE*(1+i)))
+        plaintext = fill_bytes(plaintext, block, BLOCKSIZE, len(plaintext)-(BLOCKSIZE*(1+i)))
         ctext = ctext[:-BLOCKSIZE]
     return bytes(plaintext)
 
 def main():
     ciphertext = eavesdrop().rstrip()
     plaintext = decrypt_ciphertext(ciphertext)
-    print(plaintext)
-    print(bytearray(plaintext))
-    pStr = re.sub("[)(]", "", plaintext.decode())
-    print(crypto.pkcs7_strip(pStr.encode(), BLOCKSIZE).decode())
+    # print(plaintext)
+    # print(bytearray(plaintext))
+    print(crypto.pkcs7_strip(plaintext, BLOCKSIZE).decode())
 
     # block = b'\xBE\xEF\xBE\xEF' * 4
     # plaintext = bytearray(BLOCKSIZE*3)
