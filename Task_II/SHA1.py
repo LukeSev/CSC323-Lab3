@@ -1,4 +1,7 @@
+import math
+
 int_size = 2**32
+
 
 def rotl(num, amt):
     # Given an 32-bit int and a shift amount, rotates left by 'amt' bits
@@ -11,6 +14,13 @@ def rotl(num, amt):
         shifted = temp
     return shifted
 
+def parse_block(block):
+    # Takes in 64-byte (512 bit) block as bytearray
+    # Returns list of 32-bit ints for every 4 bytes in block
+    words = [0] * 80
+    for i in range(16):
+        words[i] = int.from_bytes(bytes(block[i*4:(i*4)+4]), byteorder='big')
+    return words
 
 def sha1_hash(message):
     # Given message in bytes, create hash using SHA1 method
@@ -24,38 +34,39 @@ def sha1_hash(message):
 
     # Calculate message length in bits
     msg = bytearray(message)
-    ml = len(msg) * 8       # 8 bits per byte
+    ml = len(msg) * 8 # 8 bits per byte
 
     # Pre-processing
     # Need to pad msg with a '1' bit then k 0's until length is 448 % 512
     msg.append(0x80)
-    num_pad_bytes = int(448/8) - int(((ml+8) % 512)/8)
 
     # Now pad with 0's
-    for i in range(num_pad_bytes):
+    while(len(msg) % 64 != 56):
         msg.append(0x00)
+
     
     # Now append ml as 64-bits to make overall msg a multiple of 512
     length = ml.to_bytes(8, byteorder='big')
     for byt in length:
         msg.append(byt)
 
+    if(len(msg) % 64 != 0):
+        print("ERROR: PRE-PROCESSED MESSAGE IS NOT MULTIPLE OF 512 BITS")
+
+    N = int(len(msg)/64) # Number of blocks
+
     # Parse the message into 512-bit (64 byte) blocks
-    temp = msg
-    blocks = []
-    for i in range(int(len(msg)/64)):
-        block = bytearray()
+    blocks = [0] * N
+    for i in range(N):
+        block = bytearray(64)
         for j in range(64):
-            block.append(temp[j])
-        blocks.append(block)
-        temp = temp[64:]
+            block[j] = msg[(i*64)+j]
+        blocks[i] = block
 
     # Main Processing / Hash Computation
     for block in blocks:
         # Break up each block into sixteen 32-bit words
-        w = [0] * 80
-        for j in range(16):
-            w[j] = int.from_bytes(bytes(block[j*4:(j*4)+4]), "big")
+        w = parse_block(block)
         
         # Extend 16 words into 80 words
         for i in range(16, 80):
@@ -71,7 +82,7 @@ def sha1_hash(message):
         # Main Loop
         for i in range(80):
             if((i >= 0) and (i <=19)):
-                f = (b & c) ^ ((not b) & d)
+                f = (b & c) ^ ((~b) & d)
                 k = 0x5A827999
             elif((i >= 20) and (i <= 39)):
                 f = b ^ c ^ d
@@ -82,25 +93,41 @@ def sha1_hash(message):
             elif((i >= 60) and (i <= 79)):
                 f = b ^ c ^ d
                 k = 0xCA62C1D6
-            
-            temp = rotl(a, 5) + f + e + k + w[i]
+            else:
+                print("ERROR: SOMETHING WENT WRONG")
+
+            temp = (rotl(a, 5) + f + e + k + w[i]) % int_size
             e = d
             d = c
             c = rotl(b, 30)
             b = a
             a = temp
 
-        h0 += a
-        h1 += b
-        h2 += c
-        h3 += d
-        h4 += e
+        h0 = (h0 + a) % int_size
+        h1 = (h1 + b) % int_size
+        h2 = (h2 + c) % int_size
+        h3 = (h3 + d) % int_size
+        h4 = (h4 + e) % int_size
 
     digest = (h0 << 128) | (h1 << 96) | (h2 << 64) | (h3 << 32) | h4
     return digest
 
+def find_sha1_collision():
+    # Looking for collision on any 50 bits of sha1 output
+    # We'll look for collision in first (least significant) 50 bits
+    go = True
+    i = 0
+    hashes = {}
+    while(go):
+        msg = i.to_bytes(math.ceil(i/255), 'big')
+        digest = sha1_hash(msg) & 0x03FFFFFFFFFFFF
+        if digest in hashes:
+            print("50 bit collision found!\nInputs that caused collision: \n{}\n{}\n\nHash (50 Colliding Bits): {}\n".format(hex(msg), hex(hashes[digest], hex(digest))))
+            return (msg, hashes[digest])
+        hashes[digest] = msg
 
-def main():
+def test_sha1():
+    # Tests sha1 against four test vectors
     test_vectors = ["abc", 
                     "", 
                     "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq", 
@@ -113,11 +140,12 @@ def main():
             name = "1,000,000 a's"
         digest = sha1_hash(vector.encode())
         print("\nMessage: {}\nHash: {}".format(name, hex(digest)))
+    print()
 
-    # shift_amt = 1
-    # unshifted = 0xFFFFFFFE
-    # shifted = rotl(unshifted, shift_amt)
-    # print("Shift Amount: {}\nUnshifted: {}\nShifted:   {}".format(shift_amt, bin(unshifted), bin(shifted)))
+def main():
+    #test_sha1()
+    find_sha1_collision()
+   
 
 if __name__ == '__main__':
     main()
