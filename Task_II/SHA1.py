@@ -122,9 +122,10 @@ def find_sha1_collision():
         msg = i.to_bytes(math.ceil(i/255), 'big')
         digest = sha1_hash(msg) & 0x03FFFFFFFFFFFF
         if digest in hashes:
-            print("50 bit collision found!\nInputs that caused collision: \n{}\n{}\n\nHash (50 Colliding Bits): {}\n".format(hex(msg), hex(hashes[digest], hex(digest))))
+            #print("50 bit collision found!\nInputs that caused collision: \n{}\n{}\n\nHash (50 Colliding Bits): {}\n".format(msg.hex(), hashes[digest].hex(), digest.hex()))
             return (msg, hashes[digest])
         hashes[digest] = msg
+        i+=1
 
 def test_sha1():
     # Tests sha1 against four test vectors
@@ -144,7 +145,8 @@ def test_sha1():
 
 def main():
     #test_sha1()
-    find_sha1_collision()
+    msgs = find_sha1_collision()
+    print(msgs)
    
 
 if __name__ == '__main__':
