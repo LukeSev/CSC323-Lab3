@@ -95,22 +95,25 @@ def timingAttack():
 
     url = base_url + q + mac_url_addon
     base_len = len(url)
+    mac_len = 0
     found = 0
     while(found == 0):
         # Find next char
         for i in range(0,255,2):
             url1 = url + hex(i)[2:]
-            url1 += "0" * (40-(len(url1)-base_len)) # pad with 0's to get full mac length
+            url1 += "0" * (40-mac_len) # pad with 0's to get full mac length
             X = populate_dataset(url1, N, precision)
             url2 = url + hex(i+1)[2:]
-            url2 += "0" * (40-(len(url2)-base_len)) # pad with 0's to get full mac length
+            url2 += "0" * (40-mac_len) # pad with 0's to get full mac length
             Y = populate_dataset(url2, N, precision)
             result = BoxTest(base_percentile-sensitivity, base_percentile+sensitivity, X, Y)
             if(result == 'x'):
-                url = url1
+                mac_len += 2
+                url = url1[:base_len+mac_len]
                 break
             elif(result == 'y'):
-                url = url2
+                mac_len += 2
+                url = url2[:base_len+mac_len]
                 break
         print(url)
         if(timeSubmit(url, precision)[1] == invalid_msg):
