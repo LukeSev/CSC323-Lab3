@@ -88,10 +88,10 @@ def populate_dataset(url, N, precision):
 def timingAttack():
     # First set a baseline for the time an invalid mac should take
     q = "easy"
-    N = 100
+    N = 1000
     precision = 10
-    percentile = 0.15
-    sensitivity = 0.1
+    base_percentile = 0.055
+    sensitivity = 0.045
 
     url = base_url + q + mac_url_addon
     base_len = len(url)
@@ -105,7 +105,7 @@ def timingAttack():
             url2 = url + hex(i+1)[2:]
             url2 += "0" * (40-(len(url2)-base_len)) # pad with 0's to get full mac length
             Y = populate_dataset(url2, N, precision)
-            result = BoxTest(percentile-sensitivity, percentile+sensitivity, X, Y)
+            result = BoxTest(base_percentile-sensitivity, base_percentile+sensitivity, X, Y)
             if(result == 'x'):
                 url = url1
                 break
