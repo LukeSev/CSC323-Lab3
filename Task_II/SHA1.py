@@ -121,9 +121,11 @@ def find_sha1_collision():
     while(go):
         msg = i.to_bytes(math.ceil(i/255), 'big')
         digest = sha1_hash(msg) & 0x03FFFFFFFFFFFF
+        # digest = ((int.from_bytes(msg, byteorder='big')**2)%3) & 0x03FFFFFFFFFFFF
+        # print(type(digest))
         if digest in hashes:
-            #print("50 bit collision found!\nInputs that caused collision: \n{}\n{}\n\nHash (50 Colliding Bits): {}\n".format(msg.hex(), hashes[digest].hex(), digest.hex()))
-            return (msg, hashes[digest])
+            print("50 bit collision found!\n")
+            return (digest, (msg, hashes[digest]))
         hashes[digest] = msg
         i+=1
 
