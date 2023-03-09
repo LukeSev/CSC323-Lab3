@@ -4,6 +4,7 @@ import os
 import crypto
 import time
 import random
+import math
 
 BLOCKSIZE = 16
 
@@ -140,7 +141,7 @@ def getNoise(url, precision, N):
     max = 0
     avg = 0
     for i in range(N):
-        datapt = timeSubmit(url,precision)
+        datapt = timeSubmit(url,precision)[0]
         data.append(datapt)
         avg += datapt
         if(datapt < min):
@@ -150,14 +151,23 @@ def getNoise(url, precision, N):
     avg = avg/N
     var = 0
     for i in range(N):
-        var += abs(data[i] - avg)
+        var += abs(data[i] - avg)**2
+    var = math.sqrt(var/N)
     return (min, max, avg, var)
+
+def test_url(url, N, precision, mode, sensitivity, noise, window=None):
+    for i in range(sensitivity):
+        u = filter(populate_dataset(url, N, precision), mode, precision, window=window)
+        if(u < (noise[1] + noise[2])/2):
+            return 0
+        print("success")
+    return 1
 
 def timingAttack():
     q = "easy"
     N = 10
     precision = 50
-    sensitivity = 0.25
+    sensitivity = 4
 
     url = base_url + q + mac_url_addon
     base_len = len(url)
@@ -165,32 +175,48 @@ def timingAttack():
     while(mac_len < 40):
         # Find next char
         found = 0
-        for i in range(0,255,2):
-            url1 = url + hex(i)[2:]
-            url1 += "0" * (38-mac_len) # pad with 0's to get full mac length
-            X = populate_dataset(url1, N, precision)
-            url2 = url + hex(i+1)[2:]
-            url2 += "0" * (38-mac_len) # pad with 0's to get full mac length
-            Y = populate_dataset(url2, N, precision)
 
-            ptX = filter(X, 'pk', precision, window=0.1)
-            ptY = filter(Y, 'pk', precision, window=0.1)
-            #print("New X,Y pair: {} || {}".format(ptX, ptY))
+        # Get noise to determine what threshold to shoot for
+        noise = getNoise(url + "0"*(74-len(url)), precision, 250) # (min, max, avg, var)
+        print(noise)
 
-            threshold_multiplier = 1 + ((1+int(mac_len/2)) * sensitivity)
-            # if((max(ptX, ptY) > (min(ptX, ptY) * threshold_multiplier))):
-            if((max(ptX, ptY) > (min(ptX, ptY) + 0.01 + (0.001*threshold_multiplier)))):
-                if(ptX > ptY):
-                    print("Found new byte in X dataset.")
-                    mac_len += 2
-                    url = url1[:base_len+mac_len]
-                    found = 1
-                    break
-                elif(ptX < ptY):
-                    mac_len += 2
-                    url = url2[:base_len+mac_len]
-                    found = 1
-                    break    
+        for i in range(256):
+            potential_url = url + hex(i)[2:]
+            potential_url += "0" * (38-mac_len)
+
+            results = test_url(potential_url, N, precision, 'pk', sensitivity, noise, window=0.1)
+
+            if(results):
+                mac_len += 2
+                url = potential_url[:base_len+mac_len]
+                found = 1
+                break
+
+        # for i in range(0,255,2):
+        #     url1 = url + hex(i)[2:]
+        #     url1 += "0" * (38-mac_len) # pad with 0's to get full mac length
+        #     X = populate_dataset(url1, N, precision)
+        #     url2 = url + hex(i+1)[2:]
+        #     url2 += "0" * (38-mac_len) # pad with 0's to get full mac length
+        #     Y = populate_dataset(url2, N, precision)
+
+        #     ptX = filter(X, 'pk', precision, window=0.1)
+        #     ptY = filter(Y, 'pk', precision, window=0.1)
+        #     #print("New X,Y pair: {} || {}".format(ptX, ptY))
+
+        #     threshold_multiplier = 1 + ((1+int(mac_len/2)) * sensitivity)
+        #     if((max(ptX, ptY) > (min(ptX, ptY) + 0.01 + (0.001*threshold_multiplier)))):
+        #         if(ptX > ptY):
+        #             print("Found new byte in X dataset.")
+        #             mac_len += 2
+        #             url = url1[:base_len+mac_len]
+        #             found = 1
+        #             break
+        #         elif(ptX < ptY):
+        #             mac_len += 2
+        #             url = url2[:base_len+mac_len]
+        #             found = 1
+        #             break    
 
         if(found == 0):
             print("Failed to find byte #{}".format(int(mac_len/2)))
