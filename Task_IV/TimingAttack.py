@@ -3,6 +3,7 @@ import re
 import os
 import crypto
 import time
+import random
 
 BLOCKSIZE = 16
 
@@ -40,7 +41,50 @@ def BoxTest(i, j, X, Y):
         #print("No significant difference found")
         return '0'
     
+def process(t):
+    # Used for calibrating Hypothesis Testing, waits t amount of seconds
+    start = time.time()
+    time.sleep(t+((random.random()-0.5) *t))
+    return time.time()-start
 
+def calc_ij(tau):
+    best = (10000,10000, 0, 0)
+    for p in range(0, 100, 1):
+        FP = 0
+        FN = 0
+        i = (p/1000) * (1 + random.random())
+        j = (p/1000) * (1 + random.random())
+
+        for x in range(200):
+            print("i: {}, j: {}".format(i,j))
+            results = test_ij(i,j,tau)
+            FP += results[0]
+            FN += results[1]
+        
+        if(((FP) < best[0]) and ((FN) < best[1])):
+            best = (FP, FN, i,j)
+    return best 
+
+
+def test_ij(i,j, tau):
+    # Tests for false positives and false negatives by generating X and Y and seeing how many false positives you get
+    N = 1000
+    X = []
+    Y1 = []
+    Y2 = []
+    for i in range(N):
+        X.append(process(0.01))
+        Y1.append(process(0.01))
+        Y2.append(process(0.01 + tau))
+    
+    FN = 0
+    FP = 0
+    # First look for false positives between X and Y1
+    if(BoxTest(i,j,X,Y1) != '0'):
+        FP = 1
+    if(BoxTest(i,j,X,Y2) == '0'):
+        FN = 1
+    return (FP, FN)
 
 def get_HTML_text(text):
     lines = re.sub('<.+?>', '', text).split("\n")
@@ -57,25 +101,6 @@ def timeSubmit(url, precision):
     finish = time.time()
     return (round(finish-start, precision), get_HTML_text(r.text)[0])
 
-def get_baseline(precision):
-    # Submits a few test URLs to the server to set a baseline for waiting time
-    q1 = "testo"
-    mac1 = "5F4D5F"
-    url1 = base_url + q1 + mac_url_addon + mac1
-
-    q2 = "hello"
-    mac2 = "89032D"
-    url2 = base_url + q2 + mac_url_addon + mac2
-
-    t1 = timeSubmit(url1, precision)
-    t2 = timeSubmit(url2, precision)
-
-    if(max(t1[0],t2[0]) > (10*min(t1[0],t2[0]))):
-        # If significant difference in the two times, then one is a correct guess, otherwise set a baseline
-        print("Found a valid byte")
-        print((t1,t2))
-        valid_byte = max(t1[0], t2[0])
-    return min(t1[0], t2[0])
 
 def populate_dataset(url, N, precision):
     # Measure N values for a given url that's being tested
@@ -84,50 +109,164 @@ def populate_dataset(url, N, precision):
         U.append(timeSubmit(url, precision)[0])
     return U
 
+def filter(U, mode, precision, p=None, window=None, i=None, j=None):
+    # Applies filter to a dataset to compute the process time
+    # Modes include: percentile ('pl'), peak ('pk'), average range ('avg'), and percentile smoothing ('ps')
+    match mode:
+        case 'pl':
+            return sorted(U)[int(p)*len(U)]
+        case 'pk':
+            # window = proportion of sample to be considered at once (i.e. 0.1 = 10% of values)
+            windowsize = int(len(U)*window)
+            U = sorted(U, key = lambda u:float(u))
+            #print(U)
+            min_diff = 10000000.0
+            med = 0.0
+            for i in range(0, len(U)-windowsize+1, 1):
+                diff = U[i+windowsize-1] - U[i]
+                if(diff < min_diff):
+                    med = U[int(windowsize/2)+i]
+                    min_diff = diff
+            return med
+        case 'avg':
+            return
+        case 'ps':
+            return
+
+def getNoise(url, precision, N):
+    # Perform N repetitions of submitting a mac and find the min, max, and avg variation from the mean
+    data = []
+    min = 100000
+    max = 0
+    avg = 0
+    for i in range(N):
+        datapt = timeSubmit(url,precision)
+        data.append(datapt)
+        avg += datapt
+        if(datapt < min):
+            min = datapt
+        if(datapt > max):
+            max = datapt
+    avg = avg/N
+    var = 0
+    for i in range(N):
+        var += abs(data[i] - avg)
+    return (min, max, avg, var)
 
 def timingAttack():
-    # First set a baseline for the time an invalid mac should take
     q = "easy"
-    N = 1000
-    precision = 10
-    base_percentile = 0.055
-    sensitivity = 0.045
+    N = 10
+    precision = 50
+    sensitivity = 0.25
 
     url = base_url + q + mac_url_addon
     base_len = len(url)
     mac_len = 0
-    found = 0
-    while(found == 0):
+    while(mac_len < 40):
         # Find next char
+        found = 0
         for i in range(0,255,2):
             url1 = url + hex(i)[2:]
-            url1 += "0" * (40-mac_len) # pad with 0's to get full mac length
+            url1 += "0" * (38-mac_len) # pad with 0's to get full mac length
             X = populate_dataset(url1, N, precision)
             url2 = url + hex(i+1)[2:]
-            url2 += "0" * (40-mac_len) # pad with 0's to get full mac length
+            url2 += "0" * (38-mac_len) # pad with 0's to get full mac length
             Y = populate_dataset(url2, N, precision)
-            result = BoxTest(base_percentile-sensitivity, base_percentile+sensitivity, X, Y)
-            if(result == 'x'):
-                mac_len += 2
-                url = url1[:base_len+mac_len]
-                break
-            elif(result == 'y'):
-                mac_len += 2
-                url = url2[:base_len+mac_len]
-                break
-        print(url)
-        if(timeSubmit(url, precision)[1] == invalid_msg):
-            print("Invalid signature")
-        else:
-            print(timeSubmit(url, precision)[1])
-            found = 1
+
+            ptX = filter(X, 'pk', precision, window=0.1)
+            ptY = filter(Y, 'pk', precision, window=0.1)
+            #print("New X,Y pair: {} || {}".format(ptX, ptY))
+
+            threshold_multiplier = 1 + ((1+int(mac_len/2)) * sensitivity)
+            # if((max(ptX, ptY) > (min(ptX, ptY) * threshold_multiplier))):
+            if((max(ptX, ptY) > (min(ptX, ptY) + 0.01 + (0.001*threshold_multiplier)))):
+                if(ptX > ptY):
+                    print("Found new byte in X dataset.")
+                    mac_len += 2
+                    url = url1[:base_len+mac_len]
+                    found = 1
+                    break
+                elif(ptX < ptY):
+                    mac_len += 2
+                    url = url2[:base_len+mac_len]
+                    found = 1
+                    break    
+
+        if(found == 0):
+            print("Failed to find byte #{}".format(int(mac_len/2)))
+            return
+        print("New URL: {}".format(url))
+    if(timeSubmit(url, precision)[1] == invalid_msg):
+        print("Invalid signature")
+    else:
+        print(timeSubmit(url, precision)[1])
+        found = 1
     return url
 
+
+def simpleTimingAttack():
+    q = "easy"
+    N = 100
+    precision = 50
+    base_percentile = 0.5
+    sensitivity = 0.25
+
+    url = base_url + q + mac_url_addon
+    base_len = len(url)
+    mac_len = 0
+    while(mac_len < 40):
+        # Find next char
+        found = 0
+        for i in range(255):
+            url1 = url + hex(i)[2:]
+            url1 += "0" * (38-(mac_len*2)) # pad with 0's to get full mac length
+            url2 = url + hex(i+1)[2:]
+            url2 += "0" * (38-(mac_len*2)) # pad with 0's to get full mac length
+
+            
+            ptX = timeSubmit(url1, precision)[0]
+            ptY = timeSubmit(url2, precision)[0]
+
+            delay = 0.01*(1+mac_len)
+            if(max(ptX,ptY) > (min(ptX, ptY) + delay)):
+                    print("Found new byte")
+                    print("X,Y pair: {} || {}".format(ptX, ptY))
+                    mac_len += 1
+                    if(ptX > ptY):
+                        url = url1[:base_len+(mac_len*2)]
+                    else:
+                        url = url2[:base_len+(mac_len*2)]
+                    found = 1
+                    break
+
+        if(found == 0):
+            print("Failed to find byte #{}".format(mac_len+1))
+            return
+        print("New URL: {}".format(url))
+
+    if(timeSubmit(url, precision)[1] == invalid_msg):
+        print("Invalid signature")
+    else:
+        print(timeSubmit(url, precision)[1])
+        found = 1
+
+    return url
+
+def test():
+    url1 = base_url + "easy" + mac_url_addon + "ff" + 38*"0"
+    url2 = base_url + "easy" + mac_url_addon + "9a" + 38*"0"
+
+    print(timeSubmit(url1, 10))
+    print(timeSubmit(url2, 10))
 
 
 def main():
     url = timingAttack()
+    #url = simpleTimingAttack()
     print(url)
+    #test()
+
+
 
 if __name__ == '__main__':
     main()

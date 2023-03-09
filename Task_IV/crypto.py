@@ -17,12 +17,17 @@ class HMAC:
         print(tag_new.hex())
         #An obvious check
         if len(tag) != len(tag_new):
+            print("B" * 200)
+            print(tag.hex())
             return False
         #Now, for extra security, check each byte, one at a time
         for i in range(len(tag)):
+            print(tag[i])
+            print(tag_new[i])
             if tag[i] != tag_new[i]:
                 return False
             else:
+                print("POGGIES " * 20)
                 time.sleep(.01)    
         return True
 
